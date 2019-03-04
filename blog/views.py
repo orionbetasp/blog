@@ -9,21 +9,6 @@ from django.utils.text import slugify
 from comments.forms import CommentForm
 from .models import Post, Category, Tag
 
-"""
-请使用下方的模板引擎方式。
-def index(request):
-    return HttpResponse("欢迎访问我的博客首页！")
-"""
-
-"""
-请使用下方真正的首页视图函数
-def index(request):
-    return render(request, 'blog/index.html', context={
-        'title': '我的博客首页',
-        'welcome': '欢迎访问我的博客首页'
-    })
-"""
-
 
 def index(request):
     post_list = Post.objects.all()
@@ -37,36 +22,20 @@ class IndexView(ListView):
     paginate_by = 10
 
     def get_context_data(self, **kwargs):
-        """
-        在视图函数中将模板变量传递给模板是通过给 render 函数的 context 参数传递一个字典实现的，
-        例如 render(request, 'blog/index.html', context={'post_list': post_list})，
-        这里传递了一个 {'post_list': post_list} 字典给模板。
-        在类视图中，这个需要传递的模板变量字典是通过 get_context_data 获得的，
-        所以我们复写该方法，以便我们能够自己再插入一些我们自定义的模板变量进去。
-        """
-
         # 首先获得父类生成的传递给模板的字典。
         context = super(IndexView, self).get_context_data(**kwargs)
 
-        # 父类生成的字典中已有 paginator、page_obj、is_paginated 这三个模板变量，
-        # paginator 是 Paginator 的一个实例，
-        # page_obj 是 Page 的一个实例，
-        # is_paginated 是一个布尔变量，用于指示是否已分页。
-        # 例如如果规定每页 10 个数据，而本身只有 5 个数据，其实就用不着分页，此时 is_paginated=False。
-        # 关于什么是 Paginator，Page 类在 Django Pagination 简单分页：http://zmrenwu.com/post/34/ 中已有详细说明。
-        # 由于 context 是一个字典，所以调用 get 方法从中取出某个键对应的值。
         paginator = context.get('paginator')
         page = context.get('page_obj')
         is_paginated = context.get('is_paginated')
 
-        # 调用自己写的 pagination_data 方法获得显示分页导航条需要的数据，见下方。
+        # 调用 pagination_data 方法获得显示分页导航条需要的数据，
         pagination_data = self.pagination_data(paginator, page, is_paginated)
 
-        # 将分页导航条的模板变量更新到 context 中，注意 pagination_data 方法返回的也是一个字典。
+        # 将分页导航条的模板变量更新到 context 中
         context.update(pagination_data)
 
         # 将更新后的 context 返回，以便 ListView 使用这个字典中的模板变量去渲染模板。
-        # 注意此时 context 字典中已有了显示分页导航条所需的数据。
         return context
 
     def pagination_data(self, paginator, page, is_paginated):
@@ -126,7 +95,6 @@ class IndexView(ListView):
             # 如果用户请求的是最后一页的数据，那么当前页右边就不需要数据，因此 right=[]（已默认为空），
             # 此时只要获取当前页左边的连续页码号。
             # 比如分页页码列表是 [1, 2, 3, 4]，那么获取的就是 left = [2, 3]
-            # 这里只获取了当前页码后连续两个页码，你可以更改这个数字以获取更多页码。
             left = page_range[(page_number - 3) if (page_number - 3) > 0 else 0:page_number - 1]
 
             # 如果最左边的页码号比第 2 页页码号还大，
@@ -140,7 +108,6 @@ class IndexView(ListView):
                 first = True
         else:
             # 用户请求的既不是最后一页，也不是第 1 页，则需要获取当前页左右两边的连续页码号，
-            # 这里只获取了当前页码前后连续两个页码，你可以更改这个数字以获取更多页码。
             left = page_range[(page_number - 3) if (page_number - 3) > 0 else 0:page_number - 1]
             right = page_range[page_number:page_number + 2]
 
@@ -168,20 +135,6 @@ class IndexView(ListView):
         return data
 
 
-"""
-请使用下方包含评论列表和评论表单的详情页视图
-def detail(request, pk):
-    post = get_object_or_404(Post, pk=pk)
-    post.body = markdown.markdown(post.body,
-                                  extensions=[
-                                      'markdown.extensions.extra',
-                                      'markdown.extensions.codehilite',
-                                      'markdown.extensions.toc',
-                                  ])
-    return render(request, 'blog/detail.html', context={'post': post})
-"""
-
-
 def detail(request, pk):
     post = get_object_or_404(Post, pk=pk)
 
@@ -194,7 +147,7 @@ def detail(request, pk):
                                       'markdown.extensions.codehilite',
                                       'markdown.extensions.toc',
                                   ])
-    # 记得在顶部导入 CommentForm
+    
     form = CommentForm()
     # 获取这篇 post 下的全部评论
     comment_list = post.comment_set.all()
@@ -207,9 +160,7 @@ def detail(request, pk):
     return render(request, 'blog/detail.html', context=context)
 
 
-# 记得在顶部导入 DetailView
 class PostDetailView(DetailView):
-    # 这些属性的含义和 ListView 是一样的
     model = Post
     template_name = 'blog/detail.html'
     context_object_name = 'post'
@@ -222,14 +173,13 @@ class PostDetailView(DetailView):
         response = super(PostDetailView, self).get(request, *args, **kwargs)
 
         # 将文章阅读量 +1
-        # 注意 self.object 的值就是被访问的文章 post
+        # self.object 的值就是被访问的文章 post
         self.object.increase_views()
 
         # 视图必须返回一个 HttpResponse 对象
         return response
 
     def get_object(self, queryset=None):
-        # 覆写 get_object 方法的目的是因为需要对 post 的 body 值进行渲染
         post = super(PostDetailView, self).get_object(queryset=None)
         md = markdown.Markdown(extensions=[
             'markdown.extensions.extra',
@@ -241,8 +191,7 @@ class PostDetailView(DetailView):
         return post
 
     def get_context_data(self, **kwargs):
-        # 覆写 get_context_data 的目的是因为除了将 post 传递给模板外（DetailView 已经帮我们完成），
-        # 还要把评论表单、post 下的评论列表传递给模板。
+        # 把评论表单、post 下的评论列表传递给模板。
         context = super(PostDetailView, self).get_context_data(**kwargs)
         form = CommentForm()
         comment_list = self.object.comment_set.all()
